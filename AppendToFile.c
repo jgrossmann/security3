@@ -54,10 +54,15 @@ char *removeQuotes(char *str) {
 
 char *parseQuotedString(char *str) {
 	int i = 1, ord = -1;
-	int len = strlen(str);
+	int len = strlen(str), escape = 0;
 	for(i = 1; i<len; i++) {
 		ord = (int) str[i];
 		
+		if(ord == 92) {
+			escape = 1;
+		}else {
+			escape = 0;
+		}
 		printf("ord: %d\n", ord);
 	}
 	return str;
@@ -172,15 +177,17 @@ char *parseData(char *data) {
 	}
 	
 	char *newData = NULL;
+	char *temp = NULL;
 	if(isQuoted) {
-		char *temp = removeQuotes(data);
+		temp = removeQuotes(data);
 		newData = parseQuotedString(temp);
-		//free(temp);
+		return newData;
 	}else {
 		newData = parseString(data);
+		temp = (char *) malloc((strlen(newData) + 1) * sizeof(char));
+		strncpy(temp, newData, strlen(newData) + 1);
+		return temp;
 	}
-	
-	return newData;
 }
 
 
@@ -403,6 +410,10 @@ char **getInput() {
 			}
 		}
 		
+		/*if(escape) {
+			
+		}*/
+		
 		
 		if(isQuoted) {
 			printf("quoted\n");
@@ -451,6 +462,12 @@ char **getInput() {
 		args[argIndex][size-1] = (char) c;
 		size++;
 		
+		if(c == 92) {
+			escape = 1;
+		}else {
+			escape = 0;
+		}
+		
 		if(size == limit) {
 			limit += 4096;
 			args[argIndex] = (char *) realloc(args[argIndex], limit);
@@ -483,7 +500,7 @@ int main(void) {
 		FD_SET(0, &rfds);
 		int retval = select(1, &rfds, NULL, NULL, &tv);
 		
-		if(retval == -1) {
+		if(retval == -1) { 
 			printf("ERROR on input\n");
 			return 0;
 		}else if(retval == 0) {
@@ -525,14 +542,18 @@ int main(void) {
 			continue;
 		}
 		
-		command = (char *) malloc(strlen(filePath) + strlen(data) + 10);
+		command = (char *) malloc(strlen(filePath) + strlen(data) + 18);
 		if(command == NULL) {
 			printf("Not enough memory to create the echo command\n");
 		}else {
 			strncpy(command, "echo ", 6);
+			strncat(command, "\"", 3);
 			strncat(command, data, strlen(data)+1);
+			strncat(command, "\"", 3);
 			strncat(command, " >> ", 5);
+			strncat(command, "\"", 3);
 			strncat(command, filePath, strlen(filePath)+1);
+			strncat(command, "\"", 3);
 			
 			int result = system(command);
 			if(result == -1) {
@@ -540,7 +561,7 @@ int main(void) {
 			}
 		}
 		
-		//free(data);
+		free(data);
 		free(command);
 		free(filePath);
 		freePath(root);
