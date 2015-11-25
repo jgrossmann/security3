@@ -10,12 +10,15 @@
 #include<unistd.h>
 #include<signal.h>
 
+//flag for input loop. 
 static volatile int run = 1;
 
+//sigint callback
 void intHandler(int temp) {
 	run = 0;
 }
 
+//node in linked list for filepath
 typedef struct node {
 	char *name;
 	struct node *next;
@@ -24,7 +27,12 @@ typedef struct node {
 
 
 
-
+/*
+Returns:
+	 1 if the string is properly quoted.
+	 0 if the string is not quoted.
+	 -1 if the string is not properly quoted.
+*/
 int quotedString(char *str) {
 	int len = strlen(str);
 	if(str[0] == '"') {
@@ -44,6 +52,10 @@ int quotedString(char *str) {
 	return 0;
 }
 
+
+/*
+	Removes surrounding quotes from string
+*/
 char *removeQuotes(char *str) {
 	char *temp = (char *) malloc((strlen(str) - 1) * sizeof(char));
 	strncpy(temp, str+1, strlen(str) - 1);
@@ -52,23 +64,103 @@ char *removeQuotes(char *str) {
 	return temp;
 }
 
+
+/*
+	Parses quoted string, fixing escapes, and testing to see
+	if all input is legal. 
+*/
 char *parseQuotedString(char *str) {
-	int i = 1, ord = -1;
-	int len = strlen(str), escape = 0;
-	for(i = 1; i<len; i++) {
+	int i = 0, ord = -1, subtract = 0;
+	int len = strlen(str), escape = 0, octal = 0;
+	char *newStr = (char *) malloc((strlen(str) + 1) * sizeof(char));
+	if(newStr == NULL) {
+		printf("ERROR: Not enough memory to malloc\n");
+		return NULL;
+	}
+	for(i = 0; i<len; i++) {
 		ord = (int) str[i];
+		if(escape) {
 		
-		if(ord == 92) {
+			if(octal > 0) {
+				if(47 < ord && ord < 58) {
+					octal++;
+					if(octal == 3) {
+						octal = 0;
+						escape = 0;
+						char temp[] = {str[i-2], str[i-1], str[i], '\0'};
+						char *end;
+						int val = (int) strtol(temp, &end, 8);
+						if(val == 0) {
+							printf("ERROR: Null character is not allowed as input\n");
+							free(newStr);
+							return NULL;
+						}
+						subtract+= 3;
+						newStr[i-subtract] = (char) val;
+					}
+					continue;
+				}else {
+					int k = 0;
+					char temp[octal+1];
+					for(;k<octal;k++) {
+						temp[k] = str[i-octal+1+k];
+					}
+					temp[k] = '\0';
+					char *end;
+					int val = (int) strtol(temp, &end, 8);
+					if(val == 0) {
+						printf("ERROR: Null character not allowed as input\n");
+						free(newStr);
+						return NULL;
+					}
+					subtract += octal;
+					newStr[i-subtract] = (char) val;
+					octal = 0;
+				}
+			}else if(47 < ord && ord < 58) {
+				octal++;
+				continue;
+			}else if(ord == 110) {
+				subtract++;
+				newStr[i-subtract] = (char) 10;
+			}else if(ord == 114) {
+				subtract++;
+				newStr[i-subtract] = (char) 13;
+			}else if(ord == 116) {
+				subtract++;
+				newStr[i-subtract] = (char) 9;
+			}else if(ord == 34 || ord == 92) {
+				newStr[i-subtract-1] = (char) 92;
+				newStr[i-subtract] = (char) ord;
+			}else if(ord == 39) {
+				subtract++;
+				newStr[i-subtract] = (char) ord;
+			}else {
+				printf("ERROR: Unrecognized escape character\n");
+				free(newStr);
+				return NULL;
+			}
+				
+			escape = 0;
+			continue;
+		}else if(ord == 92) {
 			escape = 1;
+			continue;
 		}else {
 			escape = 0;
 		}
-		printf("ord: %d\n", ord);
+
+		newStr[i-subtract] = str[i];
 	}
-	return str;
+	newStr[i-subtract] = '\0';
+	return newStr;
 }
 
 
+/*
+	Parses non quoted strings and checks if all characters
+	all legal.
+*/
 char *parseString(char *str) {
 	int i = 0;
 	int ord = -1;
@@ -111,7 +203,7 @@ char *parseString(char *str) {
 			if(ord != 215 && ord != 247) continue;
 		}
 		
-		printf("Bad character with ordinal value: %d\n", ord);
+		printf("ERROR: Bad character with ordinal value: %d\n", ord);
 		return NULL;
 	}
 	
@@ -119,34 +211,41 @@ char *parseString(char *str) {
 }
 
 
+/*
+	Inserts new node into filepath linked list designated by
+	the string name.
+*/
 node *insertNode(node *currentNode, char *name) {
-	printf("insert: %s\n", name);
+	if(currentNode == NULL) {
+		currentNode = (node *) malloc(sizeof(node));
+		currentNode->name = (char *) malloc(2 * sizeof(char));
+		strncpy(currentNode->name, "/", 2);
+		currentNode->next = NULL;
+		currentNode->prev = NULL;
+	}
+	
 	if(strncmp(name, "..", 3) == 0 && strlen(name) == 2) {
-		if(currentNode == NULL) {
-			currentNode = (node *) malloc(sizeof(node));
-			currentNode->name = NULL;
-			currentNode->next = NULL;
-			currentNode->prev = NULL;
-		}
 		if(currentNode->prev == NULL) {
 			return currentNode;
 		}else {
 			currentNode = currentNode->prev;
+			free(currentNode->next->name);
+			free(currentNode->next);
 			currentNode->next = NULL;
 		}
 	}else if(strncmp(name, ".", 2) == 0 && strlen(name) == 1) {
 		return currentNode;
 	}else {
 		node *nextNode = (node *) malloc(sizeof(struct node));
-		nextNode->name = (char *) malloc((strlen(name) + 2) * sizeof(char));
-		strncpy(nextNode->name, "/", 2);
-		strncat(nextNode->name, name, strlen(name) + 1);
-		
-		if(currentNode == NULL) {
-			nextNode->prev = NULL;
-			nextNode->next = NULL;
-			return nextNode;
+		if(strncmp(currentNode->name, "/", 2) == 0 && strlen(currentNode->name) == 1) {
+			nextNode->name = (char *) malloc((strlen(name) + 1) * sizeof(char));
+			strncpy(nextNode->name, name, strlen(name)+1);
+		}else {
+			nextNode->name = (char *) malloc((strlen(name) + 2) * sizeof(char));
+			strncpy(nextNode->name, "/", 2);
+			strncat(nextNode->name, name, strlen(name) + 1);
 		}
+		
 		
 		nextNode->prev = currentNode;
 		nextNode->next = NULL;
@@ -157,22 +256,28 @@ node *insertNode(node *currentNode, char *name) {
 	return currentNode;
 }
 
+/*
+	Returns size of path as a string by combining
+	all names in file path linked list.
+*/
 int getPathSize(node *root) {
 	int size = 0;
 	while(root != NULL) {
-		printf("name: %s\n", root->name);
 		size += strlen(root->name);
 		root = root->next;
 	}
 	
-	printf("size: %d\n", size);
 	return size;
 }
 
+
+/*
+	Parses the data string to make sure it is valid
+*/
 char *parseData(char *data) {
 	int isQuoted = quotedString(data);
 	if(isQuoted == -1) {
-		printf("Error: File Path string not closed\n");
+		printf("Error: Data string not closed\n");
 		return NULL;
 	}
 	
@@ -184,6 +289,9 @@ char *parseData(char *data) {
 		return newData;
 	}else {
 		newData = parseString(data);
+		if(newData == NULL) {
+			return NULL;
+		}
 		temp = (char *) malloc((strlen(newData) + 1) * sizeof(char));
 		strncpy(temp, newData, strlen(newData) + 1);
 		return temp;
@@ -191,11 +299,22 @@ char *parseData(char *data) {
 }
 
 
+/*
+	Returns the file path to append data to if the path is valid.
+	Returns NULL if file path is not valid
+*/
 char *getValidFilePath(node *root) {
-	char *currPath = get_current_dir_name();
-	if(currPath == NULL) return NULL;
+	char *currPath = getcwd(NULL, 0); //get_current_dir_name();
+	if(currPath == NULL) {
+		printf("ERROR: Could not get current path\n");
+		return NULL;
+	}
 	int size = getPathSize(root);
 	char *path = (char *) malloc((size+1) * sizeof(char));
+	if(path == NULL) {
+		printf("ERROR: Not enough memory to malloc\n");
+		return NULL;
+	}
 	
 	strncpy(path, root->name, strlen(root->name)+1);
 	root = root->next;
@@ -205,15 +324,13 @@ char *getValidFilePath(node *root) {
 		root = root->next;
 	}
 	
-	printf("path: %s\n", path);
 	char temp[strlen(path) + 1];
 	strncpy(temp, path, strlen(path) + 1);
 	char *requestDir = dirname(temp);
 	
-	printf("requestDir: %s,  curDir: %s\n", requestDir, currPath);
 	if(strncmp(requestDir, currPath, strlen(currPath)+1) != 0) {
 		if(strncmp(requestDir, "/tmp", 5) != 0 || strlen(requestDir) != 4) {
-			printf("File path must be in the current directory or /tmp\n");
+			printf("ERROR: File path must be in the current directory or /tmp\n");
 			free(currPath);
 			free(path);
 			return NULL;
@@ -221,14 +338,16 @@ char *getValidFilePath(node *root) {
 	}
 	
 	free(currPath);
-	
-	printf("Final path: %s\n", path);
 	return path;
 }
 
+/*
+	Creates a linked list of the current file path.
+	Each node is a directory
+*/
 node *getCurrentPath() {
 	node *currentNode = NULL;
-	char *path = get_current_dir_name();
+	char *path = getcwd(NULL, 0); //get_current_dir_name();
 	char buffer[strlen(path)+1];
 	strncpy(buffer, path, strlen(path)+1);
 	free(path);
@@ -243,6 +362,7 @@ node *getCurrentPath() {
 	return currentNode;
 }
 
+//Cleans up linked list from root
 void freePath(node *root) {
 	while(root->next != NULL) {
 		free(root->name);
@@ -254,6 +374,7 @@ void freePath(node *root) {
 	free(root);
 }
 
+//Cleans up linked list from tail
 void freePathReverse(node *root) {
 	while(root->prev != NULL) {
 		free(root->name);
@@ -265,6 +386,10 @@ void freePathReverse(node *root) {
 	free(root);
 }
 
+/*
+	Takes a string path and collapses it to find the
+	absolute path without "." or ".."
+*/
 node *collapseFilePath(char *path) {
 	
 	int isQuoted = quotedString(path);
@@ -274,24 +399,26 @@ node *collapseFilePath(char *path) {
 	}
 	
 	node *currentNode = NULL;
-	printf("%c\n", path[0]);
 	
 	char *checkedStr = NULL;
 	if(!isQuoted) {
 		currentNode = getCurrentPath();
-		path = (char *) realloc(path, strlen(path) + 8);
-		if(path == NULL) {
-			printf("ERROR: No memory left to append uni to file path\n");
-			freePathReverse(currentNode);
-			return NULL;
-		}
-		strncat(path, ".jg3538", 8);
 		checkedStr = parseString(path);
 		if(checkedStr == NULL) {
 			freePathReverse(currentNode);
 			return NULL;
 		}
-		currentNode = insertNode(currentNode, checkedStr);
+		
+		char *temp = (char *) malloc(strlen(checkedStr) + 8);
+		if(temp == NULL) {
+			printf("ERROR: No memory left to append uni to file path\n");
+			freePathReverse(currentNode);
+			return NULL;
+		}
+		strncpy(temp, checkedStr, strlen(checkedStr) + 1);
+		strncat(temp, ".jg3538", 8);
+		currentNode = insertNode(currentNode, temp);
+		free(temp);
 	}else {
 	
 		if(path[1] != '/') {
@@ -299,18 +426,30 @@ node *collapseFilePath(char *path) {
 		}
 	
 		path = removeQuotes(path);
-		path = (char *) realloc(path, strlen(path) + 8);
-		if(path == NULL) {
-			printf("ERROR: No memory left to append uni to file path\n");
-			freePathReverse(currentNode);
-			return NULL;
+		char temp[strlen(path)+1];
+		strncpy(temp, path, strlen(path)+1);
+		char *base = basename(temp);
+		if(strncmp(base, "..", 3) == 0 && strlen(base) == 2) {
+			path = (char *) realloc(path, strlen(path) + 9);
+			if(path == NULL) {
+				printf("ERROR: No memory left to append uni to file path\n");
+				freePathReverse(currentNode);
+				return NULL;
+			}
+			strncat(path, "/.jg3538", 8);
+		}else {
+			path = (char *) realloc(path, strlen(path) + 8);
+			if(path == NULL) {
+				printf("ERROR: No memory left to append uni to file path\n");
+				freePathReverse(currentNode);
+				return NULL;
+			}
+			strncat(path, ".jg3538", 8);
 		}
-		strncat(path, ".jg3538", 8);
 		
 		char *token = strtok(path, "/");
 	
 		while(token != NULL) {
-			printf("string: %s\n", token);
 			checkedStr = parseQuotedString(token);
 		
 			if(checkedStr == NULL) {
@@ -319,9 +458,8 @@ node *collapseFilePath(char *path) {
 				return NULL;
 			}
 		
-			printf("checked string: %s\n", checkedStr);
 			currentNode = insertNode(currentNode, checkedStr);
-		
+			free(checkedStr);
 			token = strtok(NULL, "/");
 		}
 		
@@ -330,22 +468,30 @@ node *collapseFilePath(char *path) {
 
 	while(currentNode->prev != NULL) {
 		currentNode = currentNode->prev;
-		printf("curnode: %s\n", currentNode->name);
 	}
 	
 	return currentNode;
 }
 
-
+//frees argument list
 void freeArgs(char **args) {
 	if(args[0] != NULL) free(args[0]);
 	if(args[1] != NULL) free(args[1]);
 	free(args);
 }
 
+
+/*
+	Gets input from stdin.
+	Performs rudimentary parsing. Mostly just makes sure
+	that the input is two strings where each string is either 
+	correctly quoted or not quoted. More rigorous parsing is done right after this
+	function.
+*/
 char **getInput() {
 	int size = 1, limit = 4096;
 	int isQuoted = 0, quote = 0, argIndex = 0, escape = 0, space = 0;
+	int error = 0;
 	
 	char **args = (char **) malloc(2 * sizeof(char *));
 	args[0] = (char *) malloc(limit * sizeof(char));
@@ -359,7 +505,14 @@ char **getInput() {
 	while(run) {
 		
 		int c = getchar();
+		if(error) {
+			if(c == 10) {
+				return NULL;
+			}
+			continue;
+		}
 		
+		//if there are already two strings
 		if(argIndex == 2) {
 			if(c == 9 || c == 32) {
 				continue;
@@ -370,12 +523,13 @@ char **getInput() {
 			}else {
 				freeArgs(args);
 				printf("ERROR: Can only supply 2 strings per line\n");
-				return NULL;
+				error = 1;
+				continue;
 			}
 		}
 		
+		//beginning of a new string
 		if(size == 1) {
-			printf("size 1\n");
 			
 			if(space) {
 				if(c == 9 || c == 32) {
@@ -383,8 +537,9 @@ char **getInput() {
 					continue;
 				}else {
 					freeArgs(args);
-					printf("There should be at least 1 space between file path and data\n");
-					return NULL;
+					printf("ERROR: There should be at least 1 space between file path and data\n");
+					error = 1;
+					continue;
 				}
 			}
 			if(c == 10) {
@@ -392,14 +547,12 @@ char **getInput() {
 				return NULL;
 			}
 			if(c == 34) {
-				printf("34 quote\n");
 				args[argIndex][size-1] = (char) c;
 				size++;
 				isQuoted = 1;
 				quote = 34;
 				continue;
 			}else if(c == 39) {
-				printf("39 quote\n");
 				args[argIndex][size-1] = (char) c;
 				size++;
 				isQuoted = 1;
@@ -410,15 +563,9 @@ char **getInput() {
 			}
 		}
 		
-		/*if(escape) {
-			
-		}*/
-		
 		
 		if(isQuoted) {
-			printf("quoted\n");
 			if(quote == c && !escape) {
-				printf("end of quote\n");
 				args[argIndex][size-1] = c;
 				size++;
 				args[argIndex++][size-1] = '\0';
@@ -428,16 +575,23 @@ char **getInput() {
 				escape = 0;
 				space = 1;
 				continue;
+			}else if(quote != c && !escape &&(c == 34 || c == 39)) {
+				printf("ERROR: Must end string with same quote marks\n");
+				freeArgs(args);
+				error = 1;
+				continue;
 			}
 		}else {
 			if(c == 9 || c == 32) {
 				if(argIndex == 0) {
-					printf("end of argument\n");
 					args[argIndex++][size-1] = '\0';
 					if(argIndex == 2) return args;
 					size = 1;
 					escape = 0;
 					space = 0;
+					continue;
+				}else {
+					space = 1;
 					continue;
 				}
 			}
@@ -447,17 +601,19 @@ char **getInput() {
 					freeArgs(args);
 					return NULL;
 				}
-				printf("end of argument\n");
 				args[argIndex++][size-1] = '\0';
 				if(argIndex == 2) return args;
 				size = 1;
 				escape = 0;
 				space = 1;
 				continue;
+			}else if(space) {
+				printf("ERROR: You can only input 2 strings per line\n");
+				freeArgs(args);
+				error = 1;
+				continue;
 			}
 		}
-		
-		printf("char: %c, ord: %d\n", c, c);
 		
 		args[argIndex][size-1] = (char) c;
 		size++;
@@ -474,7 +630,8 @@ char **getInput() {
 			if(args[argIndex] == NULL) {
 				freeArgs(args);
 				printf("ERROR: Malloc failed, not enough space\n");
-				return NULL;
+				error = 1;
+				continue;
 			}
 		}	
 	}
@@ -501,7 +658,7 @@ int main(void) {
 		int retval = select(1, &rfds, NULL, NULL, &tv);
 		
 		if(retval == -1) { 
-			printf("ERROR on input\n");
+			printf("\nShutting Down\n\n");
 			return 0;
 		}else if(retval == 0) {
 			continue;
@@ -509,17 +666,13 @@ int main(void) {
 		
 		args = getInput();
 		if(args == NULL) {
-			printf("NULL args\n");
+			fflush(stdin);
 			continue;
 		}
 		
-		printf("file path: %s\n", args[0]);
-		printf("data: %s\n", args[1]);
-		printf("idk\n");
 		root = collapseFilePath(args[0]);
 		
 		if(root == NULL) {
-			printf("Invalid file path\n");
 			freeArgs(args);
 			continue;
 		}
@@ -527,7 +680,6 @@ int main(void) {
 		filePath = getValidFilePath(root);
 		
 		if(filePath == NULL) {
-			printf("Invalid file path\n");
 			freePath(root);
 			freeArgs(args);
 			continue;
@@ -535,7 +687,6 @@ int main(void) {
 		
 		char *data = parseData(args[1]);
 		if(data == NULL) {
-			printf("Invalid format for data\n");
 			freePath(root);
 			freeArgs(args);
 			free(filePath);
@@ -544,7 +695,7 @@ int main(void) {
 		
 		command = (char *) malloc(strlen(filePath) + strlen(data) + 18);
 		if(command == NULL) {
-			printf("Not enough memory to create the echo command\n");
+			printf("ERROR: Not enough memory to malloc the echo command\n");
 		}else {
 			strncpy(command, "echo ", 6);
 			strncat(command, "\"", 3);
@@ -555,10 +706,14 @@ int main(void) {
 			strncat(command, filePath, strlen(filePath)+1);
 			strncat(command, "\"", 3);
 			
+			
+			//printf("Command:\n");
+			//printf("%s\n", command);
 			int result = system(command);
 			if(result == -1) {
 				printf("ERROR: Could not append to file\n");
 			}
+			printf("SUCCESS\n");
 		}
 		
 		free(data);
