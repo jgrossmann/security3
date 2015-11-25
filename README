@@ -6,7 +6,7 @@ To compile this assignment, type: make
 To run this program, type: ./appendtofile
 
 This program takes user input from stdin in an infinite loop until
-ctrl+C is pressed. To enter in a line of data to the program, type two strings
+ctrl+C is pressed, or the word quit is entered. To enter in a line of data to the program, type two strings
 followed by the enter key (or whatever makes data appear in stdin pipe). If the data
 was appended to the specified file for each line entered to the program, the string: "SUCESS"
 should appear. If any are not successful for whatever reason, an error string should print, 
@@ -14,12 +14,14 @@ but the program will most likely continue.
 
 
 
+I included all the tests I ran in the testCommands.txt file. This can be run by typing: make test.
 
-I did not include any of my tests to run with the makefile because it proved
-too time consumingn to write out tests that would be piped into the program while 
-the program continued to run. Instead, I just performed manual tests because the program
-takes user input, and I could also greatly vary the tests if needed with efficiency. 
 
+To run your own tests, you can start the program with ./appendtofile and enter as much input as you like.
+You can also type: make exec ARG=<filename>
+where the filename is the name of the file containing the test commands line by line. 
+
+*NOTE: if you put the single word: quit    in your tests, it will end the program.
 
 
 Typing "/." will result in the path: "/..jg3538" as per the email. 

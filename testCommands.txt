@@ -1,0 +1,20 @@
+test 1ok
+"test" 2ok
+"test" "3 ok"
+"./test" "4 ok"
+"test"       "5 ok"         
+"/tmp/" "6 ok"
+this should not work
+nope
+"\101A" "should be two As \101"
+"test" shouldnotwork%
+./test nope
+testing# shouldntwork
+"shouldnt'be allowed" "it wont"
+'shouldnt"be allowed' 'it wont'
+'test' 'does it work'
+'./test' cool
+test "should \" have quote"
+test "should \' have quote"
+test 'should \" have quote'
+test 'should \' have quote'

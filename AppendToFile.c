@@ -543,6 +543,13 @@ char **getInput() {
 				}
 			}
 			if(c == 10) {
+				if(argIndex > 0) {
+					if(strncmp(args[0], "quit", 5) == 0) {
+						freeArgs(args);
+						exit(0);
+					}
+					printf("ERROR: You must give 2 strings\n");
+				}
 				freeArgs(args);
 				return NULL;
 			}
@@ -597,6 +604,11 @@ char **getInput() {
 			}
 			else if(c == 10) {
 				if(argIndex == 0) {
+					args[0][size-1] = '\0';
+					if(strncmp(args[0], "quit", 5) == 0) {
+						freeArgs(args);
+						exit(0);
+					}
 					printf("ERROR: Bad input format\n");
 					freeArgs(args);
 					return NULL;
