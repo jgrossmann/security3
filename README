@@ -1,0 +1,30 @@
+John Grossmann, jg3538
+Security Architecture and Engineering Homework 3
+
+To compile this assignment, type: make
+
+To run this program, type: ./appendtofile
+
+This program takes user input from stdin in an infinite loop until
+ctrl+C is pressed. To enter in a line of data to the program, type two strings
+followed by the enter key (or whatever makes data appear in stdin pipe). If the data
+was appended to the specified file for each line entered to the program, the string: "SUCESS"
+should appear. If any are not successful for whatever reason, an error string should print, 
+but the program will most likely continue. 
+
+
+
+
+I did not include any of my tests to run with the makefile because it proved
+too time consumingn to write out tests that would be piped into the program while 
+the program continued to run. Instead, I just performed manual tests because the program
+takes user input, and I could also greatly vary the tests if needed with efficiency. 
+
+
+
+Typing "/." will result in the path: "/..jg3538" as per the email. 
+Typing "/" will result in the path: "/.jg3538" as per the email.
+Typing "/tmp/.." will result in the path: "/.jg3538" The ".." gets parsed as it normally should.
+
+I was not sure about this, so I made it so that any quote type must be escaped if inside a quoted
+string of any quote type. So '"' would not work. "'" would not work. 

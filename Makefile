@@ -14,4 +14,4 @@ test:
 	
 
 clean:
-	rm -f appendtofile *.core *.o *.jg3538
+	rm -f appendtofile *.core *.o *.jg3538 /tmp/*.jg3538
